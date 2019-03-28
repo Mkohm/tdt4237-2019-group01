@@ -1,12 +1,5 @@
-#from sense_hat import SenseHat
-from firebase import firebase
-firebase = firebase.FirebaseApplication('https://glive-29f4a.firebaseio.com/', None)
-result = firebase.get('/users', None)
-print(result)
-
-
-#sense = SenseHat()
-
+from sense_hat import SenseHat
+sense = SenseHat()
 
 print("hei")
 while True:

@@ -2,12 +2,13 @@ import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
 
-# Use a service account
+#connecting to the database
 cred = credentials.Certificate('glive-29f4a-7c62255de9d1.json')
 firebase_admin.initialize_app(cred)
 
 db = firestore.client()
 
+#adding members in the database
 doc_ref = db.collection(u'users').document(u'aturing')
 doc_ref.set({
     u'first': u'Alan',
@@ -16,7 +17,7 @@ doc_ref.set({
     u'born': 1912
 })
 
-
+#python prints the members
 users_ref = db.collection(u'users')
 docs = users_ref.get()
 
