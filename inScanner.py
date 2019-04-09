@@ -1,14 +1,69 @@
-from sense_hat import SenseHat
-sense = SenseHat()
+import firebase_admin
+from firebase_admin import credentials
+from firebase_admin import firestore
 
-print("hei")
+import nxppy
+import time
+
+#connecting to the database
+cred = credentials.Certificate('glive-29f4a-7c62255de9d1.json')
+firebase_admin.initialize_app(cred)
+
+db = firestore.client()
+
+def isAlowedToEnter(uid):
+	for doc in brukere:
+		if uid == doc:
+			a = brukere[uid]
+			if (a['isValid'] == True and a['isIntheGym'] == False):
+				print("user can enter")
+				a['isIntheGym'] = True
+				playSound("sounds/enter.wav")
+				return True
+			elif a['isValid'] == False:
+				print("invalid card")
+			elif a['isIntheGym'] == True:
+				print ("user already in gym")
+			playSound("sounds/accessDenied.mp3")
+			return False
+	print("Unkown card")
+	return False
+
+
+brukere ={}
+# Create a callback on_snapshot function to capture changes
+def on_snapshot(doc_snapshot, changes, read_time):
+	for doc in doc_snapshot:
+		brukere[doc.id] = doc.to_dict()
+
+doc_ref = db.collection(u'users')
+
+# Watch the document
+doc_watch = doc_ref.on_snapshot(on_snapshot)
+
+import pygame
+def playSound(soundName):
+	pygame.mixer.init()
+	pygame.mixer.music.load(soundName)
+	pygame.mixer.music.play()
+	while pygame.mixer.music.get_busy() == True:
+		continue
+
+#set up scanner 
+mifare = nxppy.Mifare()
+print("Ready to scan")
+
+#wait for card to be scanned 
 while True:
-    for event in sense.stick.get_events():
-        if event.direction == "up" and event.action == "released":
-            print("up")
-        elif event.direction == "down" and event.action == "released":
-            print("down")
-        elif event.direction == "right" and event.action == "released":
-            print("right")
-        elif event.direction == "left" and event.action == "released":
-            print("left")
+	try:
+		uid = mifare.select()
+		if uid:
+			print("id: "+str(uid))
+			if isAlowedToEnter(uid):
+				#send entry to firebase
+				doc_ref = db.collection(u'users').document(uid)
+				doc_ref.set({u'isIntheGym':True}, merge=True)
+	except nxppy.SelectError:
+        	pass
+	time.sleep(1)
+
