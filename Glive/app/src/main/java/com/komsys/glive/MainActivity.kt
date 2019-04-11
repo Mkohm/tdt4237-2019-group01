@@ -3,8 +3,9 @@ package com.komsys.glive
 import android.graphics.Color
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProviders
-import com.github.mikephil.charting.components.Description
+import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
@@ -24,48 +25,58 @@ class MainActivity : AppCompatActivity() {
 
         viewModel = ViewModelProviders.of(this).get(MainViewModel::class.java)
 
-
-        val dataObjects = listOf(Pair(1f, 1f), Pair(2f, 3f), Pair(2f, 3f), Pair(4f, 3f))
-
-        val entries = ArrayList<Entry>()
-
-        for (dataObject in dataObjects) {
-
-            entries.add(Entry(dataObject.first, dataObject.second));
-
-        }
-
-        val dataSet = LineDataSet(entries, "Label"); // add entries to dataset
-        dataSet.setColor(Color.CYAN)
+        viewModel.currentNumberOfUsersHistory.observe(this, Observer {
+            val entries = ArrayList<Entry>()
 
 
-        dataSet.setHighlightEnabled(true); // allow highlighting for DataSet
-
-        dataSet.setDrawFilled(true)
-        dataSet.fillColor = Color.RED
-        dataSet.setDrawHighlightIndicators(true)
-
-        dataSet.getEntriesForXValue(2f)
-        //chart.highlightValue(2f, 1)
-        chart.getAxisLeft().setDrawGridLines(false);
-        chart.getXAxis().setDrawGridLines(false);
-        chart.xAxis.setDrawAxisLine(false)
-        chart.axisLeft.setDrawAxisLine(false)
-        chart.axisRight.setDrawAxisLine(false)
-
-        val lineData = LineData(dataSet)
-        chart.data = lineData
+            for (dataObject in it) {
+                entries.add(Entry(dataObject.timestamp, dataObject.numberOfUsers.toFloat()))
+            }
 
 
-        val description = Description()
-        description.text = "Number of people at gym"
+            val dataSet = LineDataSet(entries, "Label") // add entries to dataset
+            dataSet.setDrawValues(false)
+
+            dataSet.setDrawFilled(true)
 
 
-        chart.setDrawGridBackground(false)
-        chart.description = description
+            chart.xAxis.axisMinimum = 0.0f
+            chart.xAxis.mAxisMaximum = 24.0f
+            chart.xAxis.position = XAxis.XAxisPosition.BOTTOM
 
 
-        chart.invalidate() // refresh
+
+
+
+            chart.xAxis.setDrawGridLines(false)
+            chart.xAxis.setDrawAxisLine(false)
+            chart.xAxis.setDrawLabels(true)
+            chart.axisLeft.setDrawGridLines(false)
+            chart.axisLeft.setDrawLabels(true)
+            chart.axisLeft.setDrawAxisLine(false)
+            chart.axisRight.setDrawLabels(false)
+            chart.axisRight.setDrawAxisLine(false)
+            chart.axisRight.setDrawGridLines(false)
+
+
+            val lineData = LineData(dataSet)
+            chart.data = lineData
+
+
+
+            chart.setDrawGridBackground(false)
+            chart.legend.isEnabled = false   // Hide the legend
+
+            chart.description.isEnabled = false
+
+            chart.invalidate() // refresh
+        })
+
+
+
+        viewModel.currentNumberOfGymMembers.observe(this, Observer {
+            currentNumberOfUsers.text = it.toString()
+        })
     }
 
 }
