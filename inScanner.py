@@ -2,6 +2,7 @@ import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
 from stmpy import Machine, Driver
+import RPi.GPIO as GPIO
 
 import nxppy
 import time
@@ -9,17 +10,18 @@ import pygame
 
 class inScanner:
 	brukere={}
+	currUID = 0
 	def isAlowedToEnter(self, uid):
 		for doc in self.brukere:
 			if uid == doc:
 				a = self.brukere[uid]
 				if (a['isValid'] == True and a['isIntheGym'] == False):
-					print("user can enter")
+					print("valid, user can enter")
 					return True
 				elif a['isValid'] == False:
 					print("invalid card")
 				elif a['isIntheGym'] == True:
-					print ("user already in gym")
+					print ("invalid, user already in gym")
 				
 				return False
 		print("Unkown card")
@@ -30,18 +32,17 @@ class inScanner:
 			self.brukere[doc.id] = doc.to_dict()
 	
 	
-	def playSound(self, soundName):
-		pygame.mixer.init()
-		pygame.mixer.music.load(soundName)
-		pygame.mixer.music.play()
-		while pygame.mixer.music.get_busy() == True:
-			continue
-	#set up scanner
-	print("Ready to scan")
+	#def playSound(self, soundName):
+	#	pygame.mixer.init()
+	#	pygame.mixer.music.load(soundName)
+	#	pygame.mixer.music.play()
+	#	while pygame.mixer.music.get_busy() == True:
+	#		continue
+	
 	
 	#wait for card to be scanned 
 	def start_scanner(self):
-		print("ready")
+		print("Ready to scan")
 		hasScanned = False
 		bb = nxppy.Mifare()
 		while not hasScanned:
@@ -52,28 +53,43 @@ class inScanner:
 					print("id: "+str(uid))
 					hasScanned = True
 					if self.isAlowedToEnter(uid):
-						print("valid")
+						self.currUID = uid
 						self.stm.send('card_valid')
-						#send entry to firebase
-						doc_ref = db.collection(u'users').document(uid)
-						doc_ref.set({u'isIntheGym':True, u'scanTime':firestore.SERVER_TIMESTAMP}, merge=True)
+						
 					else:
-						print("invalid")
 						self.stm.send('card_invalid')
 					return
 			except nxppy.SelectError:
 				pass
 			time.sleep(1)
 	def approved(self):
-		print("lys grønnt")
-		self.playSound("sounds/enter.wav")
+		GPIO.output(13, True)
+		self.waiting_for_entry()
+		#self.playSound("sounds/enter.wav")
 	def denied(self):
-		print("lys rødt")
-		self.playSound("sounds/accessDenied.mp3")
+		GPIO.output(26, True)
+		#self.playSound("sounds/accessDenied.mp3")
 	def turn_off_leds(self):
-		print("klar")
-
-
+		GPIO.output(13, False)
+		GPIO.output(26, False)
+	def waiting_for_entry(self):
+		print("please enter")
+		try:
+			# Loop until users quits with CTRL-C
+			timeout=time.time() + 5
+			while True and time.time() < timeout:
+		   
+				if GPIO.input(21)==1:
+					print("user entered")
+					self.stm.send('user_entered')
+					doc_ref = db.collection(u'users').document(self.currUID)
+					doc_ref.set({u'isIntheGym':True, u'scanTime':firestore.SERVER_TIMESTAMP}, merge=True)
+					time.sleep(0.5)
+					return
+		except KeyboardInterrupt:
+		  # Reset GPIO settings
+		  GPIO.cleanup()
+		
 
 in_scanner = inScanner()
 
@@ -84,9 +100,6 @@ firebase_admin.initialize_app(cred)
 db = firestore.client()
 # Create a callback on_snapshot function to capture changes
 def on_snapshot(doc_snapshot, changes, read_time):
-	for change in changes:
-		if change.type.name == 'MODIFIED':
-			print(change.document.id)
 	in_scanner.g(doc_snapshot)
 	
 doc_ref = db.collection(u'users')
@@ -94,17 +107,35 @@ doc_ref = db.collection(u'users')
 # Watch the document
 doc_watch = doc_ref.on_snapshot(on_snapshot)
 
+# Tell GPIO library to use GPIO references
+GPIO.setmode(GPIO.BCM)
+
+# Set Switch GPIO as input
+GPIO.setup(21 , GPIO.IN)
+GPIO.setup(6, GPIO.OUT)
+GPIO.output(6, True)  
+# List of LED GPIO numbers
+LedSeq = [26,19,13]
+
+# Set up the GPIO pins as outputs and set False
+
+for x in range(3):
+    GPIO.setup(LedSeq[x], GPIO.OUT)
+    GPIO.output(LedSeq[x], False)
+
+
+    
 #state machine
 
 
 #the transistions
 t0 = {'source':'initial',
 	'target':'idle',
-	'effect':'start_scanner'}
+	'effect':'turn_off_leds;start_scanner'}
 t1 = {'trigger':'card_valid',
 	'source':'idle',
 	'target':'green',
-	'effect':'start_timer("t1",3000)'}
+	'effect':'start_timer("t1",5000);approved'}
 t2 = {'trigger':'card_invalid',
 	'source':'idle',
 	'target':'red',
@@ -112,25 +143,23 @@ t2 = {'trigger':'card_invalid',
 t3 = {'trigger':'t1',
 	'source':'green',
 	'target':'idle',
-	'effect':'start_scanner'}
+	'effect':'turn_off_leds;start_scanner'}
 t4 = {'trigger':'t2',
 	'source':'red',
 	'target':'idle',
-	'effect':'start_scanner'}
+	'effect':'turn_off_leds;start_scanner'}
 t5 = {'trigger':'user_entered',
 	'source':'green',
 	'target':'idle',
-	'effect':'start_scanner'}
+	'effect':'turn_off_leds;start_scanner'}
 #the states
-idle = {'name':'idle',
-	'entry':'turn_off_leds'}
-green = {'name':'green',
-	'entry':'approved'}
+
+
 red = {'name':'red',
 	'entry':'denied'}
 
 machine = Machine(name='in_scanner',transitions=[t0, t1, t2, t3, t4, t5], obj = in_scanner,
-			states = [idle, green, red])
+			states = [ red])
 in_scanner.stm = machine
 
 driver = Driver()
