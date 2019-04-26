@@ -8,7 +8,6 @@ import com.google.firebase.firestore.EventListener
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.QuerySnapshot
 import java.time.ZoneId
-import java.time.ZoneOffset
 
 
 class MainViewModel : ViewModel() {
@@ -42,41 +41,43 @@ class MainViewModel : ViewModel() {
 
             currentNumberOfGymMembers.value = current
 
-
-            var dataPoints = ArrayList<DataPoint>()
-            val timestamps = value.forEach {
-                val currentTimestamp = it["scanTime"] as Timestamp
-                val numberOfUsers = getActiveUsersAtTimestamp(currentTimestamp, value)
-
-                val scannedHour = currentTimestamp.toDate().toInstant().atZone(ZoneId.of("Europe/Oslo")).hour.toFloat()
-                val scannedMinute = currentTimestamp.toDate().toInstant().atZone(ZoneId.of("Europe/Oslo")).minute.toFloat()
-
-                val hourfraction = scannedHour + (scannedMinute/60)
-
-                dataPoints.add(DataPoint(hourfraction, numberOfUsers))
-
-            }
-
-            val sortedDataPoints = dataPoints.sortedBy { it.timestamp }
-
-            currentNumberOfUsersHistory.value = sortedDataPoints
-
         })
 
-    }
-
-    fun getActiveUsersAtTimestamp(currentTimestamp: Timestamp, it: QuerySnapshot?): Int {
-
-        var numberOfUsers = 1
-        it?.forEach { user ->
-            val isIntheGym = user["isIntheGym"] as Boolean
-            val timestamp = user["scanTime"] as Timestamp
-            if (isIntheGym && timestamp.compareTo(currentTimestamp) == -1) {
-                numberOfUsers++
+        val fakedataref = db.collection("fakeData")
+        fakedataref.addSnapshotListener(EventListener<QuerySnapshot> { value, e ->
+            if (e != null) {
+                Log.w(TAG, "Listen failed.", e)
+                return@EventListener
             }
-        }
 
-        return numberOfUsers
+
+            val fakeData = arrayListOf<DataPoint>()
+            value!!.forEach { data ->
+
+                for (index in 0..11) {
+
+                    val scannedHour =
+                        (data["timestamp" + index] as Timestamp).toDate().toInstant().atZone(ZoneId.of("Europe/Oslo"))
+                            .hour.toFloat()
+                    val scannedMinute =
+                        (data["timestamp" + index] as Timestamp).toDate().toInstant().atZone(ZoneId.of("Europe/Oslo"))
+                            .minute.toFloat()
+                    val hourfraction = scannedHour + (scannedMinute / 60)
+
+
+                    val numberOfUsers = (data["number" + index] as Long).toInt()
+
+                    fakeData.add(
+                        DataPoint(
+                            hourfraction, numberOfUsers
+                        )
+                    )
+                }
+            }
+
+
+            currentNumberOfUsersHistory.value = fakeData
+        })
     }
 
 
