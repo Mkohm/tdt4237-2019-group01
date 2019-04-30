@@ -37,7 +37,7 @@
                 android:id="@+id/textView3"
         />
         <Switch
-                android:enabled="true"
+                android:checked="true"
                 android:layout_weight="0.5"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
